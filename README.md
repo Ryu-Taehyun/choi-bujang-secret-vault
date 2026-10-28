@@ -44,3 +44,61 @@
 `/api/notes`는 **인증 없는 공개 주소**입니다. 주소를 아는 누구나 서버 함수를 통해 가상 메모를 읽을 수 있습니다. DB의 RLS와 클라이언트 읽기 권한 제한은 이 공개 서버 함수의 접근을 막지 않습니다. 이번 단계는 저장 위치를 분리한 것이며 로그인·소유자별 접근 제어는 아직 구현하지 않았습니다. 실제 학생 자료는 넣지 않습니다.
 
 SQL 실행과 Vercel 환경변수 설정 여부는 코드만으로 보장되지 않습니다. 네 카드가 실제 배포에서 보이는지는 배포 후 별도로 확인해야 합니다.
+
+## 2단계 검색 확인 절차와 기록
+
+### 검색 범위와 실행 방법
+
+검색 기준은 SQL로 옮긴 가상 메모 본문 네 문장 각각의 **완전한 문자열**입니다. 제목이나 `SAMPLE_NOTE_1`만 검색해서 본문 제거를 판정하지 않습니다. 검색어 파일·SQL·내려받은 API 응답은 저장소 및 `public/` 밖에 둡니다. README나 시험 코드에 본문을 다시 적지 않습니다.
+
+기존 작업 폴더는 건드리지 않고 임시 폴더에 최신 저장소를 새로 받아 확인할 수 있습니다. 아래 명령은 PowerShell 7과 Git, Node.js, npm, ripgrep(`rg`)이 있는 환경에서 실행합니다. 네 번의 입력에는 **가상 메모 본문만** 입력하며 키·토큰·실제 학생 자료는 넣지 않습니다.
+
+```powershell
+$auditRoot = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $auditRoot | Out-Null
+git clone --branch main --single-branch https://github.com/Ryu-Taehyun/choi-bujang-secret-vault.git "$auditRoot/repo"
+$patterns = 1..4 | ForEach-Object { Read-Host "가상 메모 본문 $_" }
+if (@($patterns | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count) { throw '빈 검색어는 사용할 수 없습니다.' }
+$patterns | Set-Content -Encoding utf8 "$auditRoot/phrases.txt"
+Set-Location "$auditRoot/repo"
+git rev-parse HEAD
+rg -l --hidden -F -f "$auditRoot/phrases.txt" -g '!.git/**' -g '!node_modules/**' .
+npm run build -- --local
+rg -l --hidden -F -f "$auditRoot/phrases.txt" public
+```
+
+각 `rg` 직후 종료 코드를 확인합니다. **0은 본문이 발견됨**, **1은 일치 없음**, **2 이상은 검색 오류**입니다. 오류를 일치 없음으로 기록하지 않습니다. 파일 이름만 출력하며 메모 문장은 결과 기록에 복사하지 않습니다. 로컬 빌드는 실제 배포 확인을 대신하지 않습니다.
+
+실제 배포 파일은 다음과 같이 **쿠키·인증 헤더 없이** 받아 별도로 검색합니다.
+
+```powershell
+$base = 'https://choi-bujang-secret-vault-flax.vercel.app'
+foreach ($entry in @(@('/', 'index.html'), @('/data.json', 'data.json'), @('/aleph.json', 'aleph.json'))) {
+  $result = Invoke-WebRequest -Uri ($base + $entry[0]) -SkipHttpErrorCheck -Headers @{ 'Cache-Control' = 'no-cache' }
+  $result.Content | Set-Content -Encoding utf8 (Join-Path $auditRoot $entry[1])
+  [pscustomobject]@{ Path = $entry[0]; Status = [int]$result.StatusCode }
+}
+rg -l -F -f "$auditRoot/phrases.txt" "$auditRoot/index.html" "$auditRoot/data.json" "$auditRoot/aleph.json"
+```
+
+`/`와 `/aleph.json`은 200인지, `/data.json`은 404이고 메모가 없는지 확인합니다. 오류 페이지·접속 실패를 정상 정적 파일로 판정하지 않습니다. `/aleph.json`의 저장소·커밋을 기록한 GitHub SHA와 대조합니다. 배포가 뒤처졌다면 최신 코드 검증과 구분해 기록합니다. 현재 화면은 CSS와 스크립트가 HTML 안에 있습니다. 이후 별도 JS·JSON 등 브라우저가 받는 파일이 생기면 그 파일도 내려받아 같은 검색에 포함합니다.
+
+`/api/notes` 응답은 정적 파일과 **별도 항목**으로 확인합니다. 비로그인 HTTP 상태, 메모 건수, 네 본문과의 일치 여부만 기록하고 키·본문·DB 오류 원문은 기록하지 않습니다. 화면 카드 네 개가 표시되는지도 확인합니다. 실패·미실행은 그대로 기록하며 인증 차단 성공으로 바꾸어 쓰지 않습니다. 공개 키로 Supabase를 직접 요청하는 점검은 심판이 확인합니다. 이 절차는 `npm run bundle`을 요구하지 않습니다.
+
+### 실제 검색 결과 — 2026-10-28 (한국 시간)
+
+확인한 코드와 배포 커밋: `91e6c99db0dec0f7e449b2e1c1b2d4018ddb79f9`. 아래 결과는 이 README 기록을 추가하기 직전의 스냅샷이며, 이후 배포에도 자동 적용되는 판정은 아닙니다.
+
+| 구분 | 실제 확인 결과 |
+| --- | --- |
+| GitHub 최신 커밋의 추적 파일 전체 | 43개 파일을 네 본문으로 검색: 일치 파일 0개, 읽기 실패 0개 |
+| 현재 배포 `/` | HTTP 200, 네 본문 일치 0건 |
+| 현재 배포 `/data.json` | HTTP 404, 메모 본문 없음 |
+| 현재 배포 `/aleph.json` | HTTP 200, 네 본문 일치 0건, step 2 및 위 커밋 일치 |
+| 공개 API `/api/notes` | 비로그인 HTTP 503, `NOTES_NOT_CONFIGURED`; 네 건 조회 및 실제 화면 네 카드 확인은 미완료 |
+
+### 공개 API의 남은 약점과 과거 노출
+
+검색 결과 0건은 **현재 확인한 코드·정적 응답에서 본문을 찾지 못했다는 뜻**입니다. `/api/notes`에는 사용자 인증·소유자별 접근 제어가 없습니다. 서버 환경변수와 DB 준비가 끝나면 누구나 이 공개 주소로 가상 메모를 읽을 수 있습니다. 현재 503은 설정 미완료이며 접근 제어 성공이 아닙니다. 화면에 네 카드가 보이는 상태에서도 API 본문 노출은 별도로 남습니다.
+
+옛 공개 커밋의 메모 본문, 옛 Vercel 배포, 이미 내려받은 복사본은 이번 변경으로 없어지지 않습니다. 과거 커밋·배포의 회수나 접근 차단은 이번에 수행하거나 검증하지 않았습니다. **옛 공개 커밋과 옛 배포가 남는 한 과거 노출이 해소됐다고 쓰지 않습니다.** 현재 정적 파일 검색 통과를 과거 노출 해소나 자료실 전체 보호 완료로 보고하지 않습니다.
