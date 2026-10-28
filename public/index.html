@@ -23,19 +23,19 @@
     <div class="eyebrow">BYTE BACK · 2단계 자료 분리</div>
     <h1>내 자료실</h1>
     <p>자료 본문은 정적 파일에서 제거했습니다.</p>
-    <div class="notice">자료는 이 화면에서 조회할 수 없습니다. 데이터베이스 SQL 실행은 별도로 확인해야 합니다.</div>
+    <div class="notice">학습용 가상 메모를 서버에서 불러옵니다. 아직 로그인 보호가 없어 API 주소로도 자료를 읽을 수 있습니다.</div>
     <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
   </main>
   <script type="module">
     const list = document.querySelector('#notes');
     try {
-      const response = await fetch('/data.json', { cache: 'no-store' });
-      if (!response.ok) throw new Error('공개 자료를 읽을 수 없습니다.');
+      const response = await fetch('/api/notes', { cache: 'no-store' });
+      if (!response.ok) throw new Error('자료를 불러오지 못했습니다. 서버 설정과 데이터베이스 준비 상태를 확인하세요.');
       const data = await response.json();
       if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
       if (data.notes.length === 0) {
         const item = document.createElement('li');
-        item.textContent = '공개된 메모가 없습니다.';
+        item.textContent = '등록된 가상 메모가 없습니다.';
         list.replaceChildren(item);
       } else {
       list.replaceChildren(...data.notes.map(note => {
