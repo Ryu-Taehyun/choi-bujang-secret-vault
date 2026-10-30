@@ -2,6 +2,30 @@
 
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 학습에 사용하는 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
+## 최신 저장점: 「4단계 저장점」 — 2026-10-30 (한국 시간)
+
+저장점 이름은 사용자 요청이며, 실제 구현 단계 `aleph.config.json.step`은 **3**입니다. 소유자 검사가 없는 상태이므로 4단계 보호 완료를 뜻하지 않습니다. 아래 1·2단계 설명과 배포 결과는 이전 기록입니다.
+
+- 공식 Supabase SDK 이메일·비밀번호 로그인과 로그아웃 화면, 오류 표시를 구현했습니다. 브라우저는 SDK의 토큰을 자료 API에 보냅니다. `src/verify-login.mjs`는 변경하지 않고 API에서 사용합니다. 토큰이 없거나 검증에 실패하면 DB 자료를 반환하지 않습니다.
+- `GET /api/notes`는 검증된 사용자 ID의 메모 배열을 반환합니다. `POST /api/notes`는 `{id?,title,body}`를 받고 검증된 ID를 `owner_id`로 저장하며 `{id}`를 반환합니다. 생략한 메모 ID는 서버가 UUID로 생성합니다.
+- `GET`, `PUT`, `DELETE /api/notes/:id`를 구현했습니다. 한 건 응답은 `{id,title,body}`이며 삭제 후 GET은 404입니다. 외부의 `body`는 기존 DB `content` 컬럼에 연결합니다. 이 경로들은 `allowedRoutes`와 Vercel 경로 설정에 기록했습니다.
+- 한 건 조회·수정·삭제에는 아직 소유자 검사가 없습니다. B의 타인 메모 접근 시험은 미실행이며 4단계에 남겨 두었습니다. 화면에서 로그아웃하면 메모와 작성 내용을 지웁니다.
+- 로컬 빌드, 가상 검증 결과·가상 DB를 이용한 API CRUD/무로그인 거부 시험, 가상 화면의 추가·수정·삭제 시험은 통과했습니다. 실제 A 로그인과 DB CRUD, 시크릿 창, 새 배포 확인은 미실행입니다. 기존 `test:r5`와 `test:package` 각 1건 실패는 수정 전 커밋에서도 재현됐습니다.
+
+### 연결 설정과 다시 실행
+
+Supabase 연결 화면에서 Project URL `https://lgpldyanjdhloxlslvrn.supabase.co`를 확인했습니다. `identityProvider.issuer`는 이 주소의 `/auth/v1`, `jwksUrl`은 `/auth/v1/.well-known/jwks.json`, `audience`는 `authenticated`로 기록했습니다. 2026-10-30에 공개키 주소의 HTTP 200과 키 1개를 확인했습니다. 이는 실제 A 로그인 성공을 의미하지 않습니다.
+
+브라우저의 `public/index.html`에는 사용자가 제공한 공개 Project URL과 publishable key를 연결했습니다. 비밀번호와 JWT 처리는 공식 SDK에 맡깁니다. 실제 A 계정 로그인 시험은 미실행입니다. 서버의 `SUPABASE_URL`은 위와 같은 프로젝트여야 합니다. `SUPABASE_SECRET_KEY`는 Vercel 공식 환경변수 입력란에서만 설정하며 코드·채팅에 넣지 않습니다. DB 적재와 실제 권한 상태는 별도 확인이 필요합니다.
+
+2026-10-30에 공개 키로 Auth 설정 HTTP 200과 이메일 로그인 활성화를 확인했고, 브라우저 SDK 주소도 HTTP 200으로 응답했습니다. 이 읽기 점검은 실제 계정 로그인이나 메모 조회·수정 시험을 대신하지 않습니다.
+
+등록된 배포 주소는 `https://choi-bujang-secret-vault-flax.vercel.app/`입니다. 이번 로컬 변경은 배포하거나 원격 저장소에 푸시하지 않았으며, 그 주소가 현재 저장점을 실행한다고 확인하지 않았습니다. `judgeIssuer`는 보존했습니다. `originalApiUrl`과 `restoreRoute`는 미설정이며, 판정기의 `starter.deny`는 기존 기본 거부 규칙 하나뿐입니다.
+
+재실행: `npm run build -- --local`. API 회귀 시험: `node --experimental-test-module-mocks --test test/notes-auth.test.mjs` (Node.js 22.3 이상 필요). 실제 화면은 연결 설정 후 Vercel **Deployments → Redeploy**에서 배포하고 **로그인 → 메모 추가 → 수정 → 삭제 → 로그아웃** 순서로 확인합니다. 정상 A CRUD와 삭제 후 404, 무로그인 요청 401을 각각 확인해야 합니다. 로컬 정적 빌드는 API 서버나 실제 계정 시험을 대신하지 않습니다.
+
+제출 묶음은 커밋 후 `npm run bundle`로 생성합니다. `bundle-notes.json`과 `artifacts/submission.json`은 커밋하지 않습니다. 자기 점검에는 실제 HTTP 결과만 기록하며, 실제 계정 시험 미실행이나 이전 배포를 보호 성공으로 기록하지 않습니다. 발급자 설정 미완료 등 검증 오류가 있으면 제출 JSON은 생성되지 않습니다.
+
 ## 1단계 기록: 학생이 하는 일
 
 1. GitHub 계정을 만듭니다.
@@ -24,7 +48,7 @@
 
 `src/decider.mjs`와 `src/detect.mjs`의 로컬 시험은 반 엔진이나 운영 심판의 결과가 아닙니다. 1단계 이후 제출 묶음 계약 `aleph.defense.submission.v2`는 `scripts/bundle.mjs`에 남아 있으며, 코딩 도구가 해당 단계의 최신 배포 주소와 Git 원격을 맞춘 뒤 사용합니다.
 
-## 현재 단계: 2 — 자료를 코드 밖으로 옮깁니다
+## 이전 2단계 기록 — 자료를 코드 밖으로 옮깁니다
 
 
 ### 이번 단계에서 관찰하는 문제
