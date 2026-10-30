@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 let verifyLogin;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const LEGACY_NOTE_IDS = new Set(['sample_note_1', 'sample_note_2', 'sample_note_3', 'sample_note_4']);
 
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'no-store');
@@ -30,7 +31,7 @@ export default async function handler(request, response) {
   }
   if (!identity) return response.status(401).json({ error: 'INVALID_LOGIN' });
   // Only the verifier's result grants access. Client userId/role are never used.
-  if (single && (typeof routeId !== 'string' || !UUID.test(routeId))) {
+  if (single && (typeof routeId !== 'string' || (!UUID.test(routeId) && !LEGACY_NOTE_IDS.has(routeId)))) {
     return response.status(400).json({ error: 'INVALID_NOTE_ID' });
   }
   const id = single ? routeId.toLowerCase() : null;
@@ -49,6 +50,9 @@ export default async function handler(request, response) {
         || typeof input.title !== 'string' || !input.title.trim() || input.title.length > 200
         || typeof input.body !== 'string' || input.body.length > 20000) {
       return response.status(400).json({ error: 'INVALID_NOTE' });
+    }
+    if (request.method === 'PUT' && Object.hasOwn(input, 'owner_id')) {
+      return response.status(403).json({ error: 'OWNER_CHANGE_FORBIDDEN' });
     }
     if (request.method === 'POST') {
       if (input.id !== undefined && (typeof input.id !== 'string' || !UUID.test(input.id))) {
@@ -70,11 +74,12 @@ export default async function handler(request, response) {
   } catch {
     return response.status(503).json({ error: 'NOTES_NOT_CONFIGURED' });
   }
-  endpoint.searchParams.set('select', 'id,title,content');
+  endpoint.searchParams.set('select', 'id,title,content,owner_id');
   if (single) {
-    // Stage 3: deliberately no owner filter for single-note operations.
-    // Record cross-user access in stage 4 before adding ownership checks.
+    // Scope the read/write itself, so ownership cannot change between a
+    // separate authorization read and the mutation.
     endpoint.searchParams.set('id', `eq.${id}`);
+    endpoint.searchParams.set('owner_id', `eq.${identity.userId}`);
   } else if (request.method === 'GET') {
     endpoint.searchParams.set('owner_id', `eq.${identity.userId}`);
     endpoint.searchParams.set('order', 'id.asc');
@@ -82,10 +87,10 @@ export default async function handler(request, response) {
   const method = request.method === 'PUT' ? 'PATCH' : request.method;
   let payload;
   if (input) {
-    payload = { title: input.title.trim(), content: input.body };
+    // The old row is scoped above; the new row's owner is fixed here.
+    payload = { title: input.title.trim(), content: input.body, owner_id: identity.userId };
     if (request.method === 'POST') {
       payload.id = newId;
-      payload.owner_id = identity.userId;
     }
   }
   try {
@@ -103,7 +108,8 @@ export default async function handler(request, response) {
     if (!upstream.ok) return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });
     const rows = await upstream.json();
     if (!Array.isArray(rows) || (single && rows.length > 1)
-        || rows.some(row => !row || typeof row.id !== 'string' || typeof row.title !== 'string'
+        || rows.some(row => !row || row.owner_id !== identity.userId
+          || typeof row.id !== 'string' || typeof row.title !== 'string'
           || typeof row.content !== 'string')) {
       return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });
     }

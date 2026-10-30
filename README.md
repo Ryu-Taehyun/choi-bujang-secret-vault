@@ -4,13 +4,14 @@
 
 ## 최신 저장점: 「4단계 저장점」 — 2026-10-30 (한국 시간)
 
-저장점 이름은 사용자 요청이며, 실제 구현 단계 `aleph.config.json.step`은 **3**입니다. 소유자 검사가 없는 상태이므로 4단계 보호 완료를 뜻하지 않습니다. 아래 1·2단계 설명과 배포 결과는 이전 기록입니다.
+실제 구현 단계 `aleph.config.json.step`은 **4**입니다. 이번 저장점에는 API 소유자 검사가 포함됩니다. DB의 RLS·최소 권한 SQL은 제안만 했으며 적용 여부와 실제 계정 시험은 미확인입니다. 따라서 4단계 전체 보호가 검증됐다는 뜻은 아닙니다. 아래 1·2단계 설명과 배포 결과는 이전 기록입니다.
 
 - 공식 Supabase SDK 이메일·비밀번호 로그인과 로그아웃 화면, 오류 표시를 구현했습니다. 브라우저는 SDK의 토큰을 자료 API에 보냅니다. `src/verify-login.mjs`는 변경하지 않고 API에서 사용합니다. 토큰이 없거나 검증에 실패하면 DB 자료를 반환하지 않습니다.
 - `GET /api/notes`는 검증된 사용자 ID의 메모 배열을 반환합니다. `POST /api/notes`는 `{id?,title,body}`를 받고 검증된 ID를 `owner_id`로 저장하며 `{id}`를 반환합니다. 생략한 메모 ID는 서버가 UUID로 생성합니다.
 - `GET`, `PUT`, `DELETE /api/notes/:id`를 구현했습니다. 한 건 응답은 `{id,title,body}`이며 삭제 후 GET은 404입니다. 외부의 `body`는 기존 DB `content` 컬럼에 연결합니다. 이 경로들은 `allowedRoutes`와 Vercel 경로 설정에 기록했습니다.
-- 한 건 조회·수정·삭제에는 아직 소유자 검사가 없습니다. B의 타인 메모 접근 시험은 미실행이며 4단계에 남겨 두었습니다. 화면에서 로그아웃하면 메모와 작성 내용을 지웁니다.
-- 로컬 빌드, 가상 검증 결과·가상 DB를 이용한 API CRUD/무로그인 거부 시험, 가상 화면의 추가·수정·삭제 시험은 통과했습니다. 실제 A 로그인과 DB CRUD, 시크릿 창, 새 배포 확인은 미실행입니다. 기존 `test:r5`와 `test:package` 각 1건 실패는 수정 전 커밋에서도 재현됐습니다.
+- 목록과 한 건 조회·수정·삭제는 DB 요청 자체에 검증된 사용자 ID의 `owner_id` 조건을 적용합니다. 타인 또는 소유자 없는 메모는 404입니다. 추가·수정 후 소유자는 서버가 검증된 ID로 고정하고 응답 행의 소유자도 확인합니다. 수정 본문의 `owner_id`는 403으로 거부합니다. 기존 `sample_note_1`~`sample_note_4`의 한 건 작업도 지원하며 새 메모 ID는 UUID입니다.
+- 로컬 빌드와 가상 검증 결과·가상 DB를 이용한 API 시험 3건이 통과했습니다. 가상 A/B의 자기 메모 CRUD, 상대 메모 접근 거부, 소유자 변경 거부, URL 소유자 위조, 소유자 없는 행 차단을 확인했습니다. 실제 A/B 로그인·DB CRUD와 소유자 SQL·RLS SQL 적용 후 시험은 미실행입니다. 기존 `test:r5`와 `test:package` 각 1건 실패는 수정 전 커밋에서도 재현됐습니다.
+- 소유자 연결 SQL과 RLS·최소 권한 SQL은 채팅에서 검토용으로 제안했습니다. 이 도구가 DB에 적용하지 않았고 실제 권한 조회 결과도 받지 않았습니다. anon 권한 없음, authenticated의 네 CRUD 권한, 기존·새 행의 `auth.uid() = owner_id` 정책은 SQL 적용 후 별도로 확인해야 합니다. 서버 전용 키의 DB 요청은 RLS를 우회할 수 있으므로 API 소유자 검사도 유지해야 합니다.
 
 ### 연결 설정과 다시 실행
 
@@ -20,9 +21,9 @@ Supabase 연결 화면에서 Project URL `https://lgpldyanjdhloxlslvrn.supabase.
 
 2026-10-30에 공개 키로 Auth 설정 HTTP 200과 이메일 로그인 활성화를 확인했고, 브라우저 SDK 주소도 HTTP 200으로 응답했습니다. 이 읽기 점검은 실제 계정 로그인이나 메모 조회·수정 시험을 대신하지 않습니다.
 
-등록된 배포 주소는 `https://choi-bujang-secret-vault-flax.vercel.app/`입니다. 이번 로컬 변경은 배포하거나 원격 저장소에 푸시하지 않았으며, 그 주소가 현재 저장점을 실행한다고 확인하지 않았습니다. `judgeIssuer`는 보존했습니다. `originalApiUrl`과 `restoreRoute`는 미설정이며, 판정기의 `starter.deny`는 기존 기본 거부 규칙 하나뿐입니다.
+등록된 배포 주소는 `https://choi-bujang-secret-vault-flax.vercel.app/`입니다. 이전 커밋 `58f4ff5`의 단계 3 배포와 nosniff 헤더, 무로그인 401 JSON 응답을 확인했습니다. 서버 설정 후 잘못된 토큰도 401 `INVALID_LOGIN`으로 응답했습니다. 이번 단계 4 소유자 검사 변경은 아직 푸시·배포하지 않았으며 최신 저장점의 배포 확인을 대신하지 않습니다. `judgeIssuer`와 로그인 발급자, 다섯 허용 경로는 보존했습니다. `originalApiUrl`과 `restoreRoute`는 미설정이며, 판정기의 `starter.deny`는 기존 기본 거부 규칙 하나뿐입니다.
 
-재실행: `npm run build -- --local`. API 회귀 시험: `node --experimental-test-module-mocks --test test/notes-auth.test.mjs` (Node.js 22.3 이상 필요). 실제 화면은 연결 설정 후 Vercel **Deployments → Redeploy**에서 배포하고 **로그인 → 메모 추가 → 수정 → 삭제 → 로그아웃** 순서로 확인합니다. 정상 A CRUD와 삭제 후 404, 무로그인 요청 401을 각각 확인해야 합니다. 로컬 정적 빌드는 API 서버나 실제 계정 시험을 대신하지 않습니다.
+재실행: `npm run build -- --local`. API 회귀 시험: `node --experimental-test-module-mocks --test test/notes-auth.test.mjs` (Node.js 22.3 이상 필요). 실제 화면은 연결 설정 후 새 커밋을 배포하고 **A/B 각각 로그인 → 메모 추가 → 수정 → 삭제 → 로그아웃** 순서로 확인합니다. 자기 메모 CRUD는 성공, 상대 메모 한 건 요청과 삭제 후 조회는 404, 수정 본문 소유자 변경은 403, 무로그인은 401이어야 합니다. 로컬 정적 빌드는 API 서버나 실제 계정 시험을 대신하지 않습니다.
 
 제출 묶음은 커밋 후 `npm run bundle`로 생성합니다. `bundle-notes.json`과 `artifacts/submission.json`은 커밋하지 않습니다. 자기 점검에는 실제 HTTP 결과만 기록하며, 실제 계정 시험 미실행이나 이전 배포를 보호 성공으로 기록하지 않습니다. 발급자 설정 미완료 등 검증 오류가 있으면 제출 JSON은 생성되지 않습니다.
 
@@ -40,7 +41,7 @@ Supabase 연결 화면에서 Project URL `https://lgpldyanjdhloxlslvrn.supabase.
 
 `aleph.config.json`의 `repoUrl`과 `publicAppUrl`은 이전 제출 묶음 방식의 자리표시자입니다. 1단계에서는 학생이 편집하지 않습니다. 2단계 이후 코딩 도구가 필요한 설정과 보호 기능을 단계별로 작성합니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
 
-로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. `src/attack-check.mjs`는 현재 2단계의 실제 비로그인 HTTP 응답을 점검합니다. 결과는 학생 자기 점검이며 심판 판정이 아닙니다.
+로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. `src/attack-check.mjs`는 2~4단계의 실제 HTTP 응답을 점검합니다. 4단계에서는 비로그인·잘못된 토큰 거부와 배포 정보를 확인하며, 실제 A/B 소유자 시험은 자동으로 실행하지 않습니다. 결과는 학생 자기 점검이며 심판 판정이 아닙니다.
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
