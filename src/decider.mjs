@@ -2,8 +2,9 @@
 // 6단계: 등록 기기의 자료실 읽기만 허용하고 나머지는 기본 거부합니다.
 // 요청 본문의 userId, role, 기기 키, 토큰을 별도로 믿거나 저장하지 마세요.
 import { inspectAccessSignals } from './access-signals.mjs';
+import { readableResource } from './resource-zones.mjs';
 
-export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'step_up_required']);
+export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'step_up_required', 'resource_zone']);
 
 export async function decide(request) {
   if (request.deviceRegistered !== true) {
@@ -15,8 +16,7 @@ export async function decide(request) {
       ruleIds: ['device_registered'],
     };
   }
-  if (request.service === 'notes' && request.method === 'GET'
-      && ['GET /notes', 'GET /notes/:id'].includes(request.route)) {
+  if (readableResource(request)) {
     const { fixture } = inspectAccessSignals(request);
     // Only the provided simulation has these signals. Unknown live telemetry
     // does not become "normal" and cannot prove that real step-up is connected.
@@ -33,7 +33,7 @@ export async function decide(request) {
         requestId: request.requestId,
         decision: 'step_up',
         reasonCode: 'step_up_required',
-        ruleIds: ['device_registered', 'step_up_required'],
+        ruleIds: ['device_registered', 'resource_zone', 'step_up_required'],
       };
     }
     return {
@@ -41,7 +41,7 @@ export async function decide(request) {
       requestId: request.requestId,
       decision: 'allow',
       reasonCode: 'approved',
-      ruleIds: ['device_registered'],
+      ruleIds: ['device_registered', 'resource_zone'],
     };
   }
   return {
@@ -49,6 +49,6 @@ export async function decide(request) {
     requestId: request.requestId,
     decision: 'deny',
     reasonCode: 'starter_not_ready',
-    ruleIds: [RULE_IDS[0]],
+    ruleIds: [RULE_IDS[0], 'resource_zone'],
   };
 }

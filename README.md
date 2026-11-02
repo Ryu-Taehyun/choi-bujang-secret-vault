@@ -2,7 +2,40 @@
 
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 학습에 사용하는 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
-## 최신 저장점: 「7단계 저장점」 — 2026-11-02 (한국 시간)
+## 최신 저장점: 「8단계 저장점」 — 2026-11-02 (한국 시간)
+
+시작 시 마지막 커밋 `53e4109` 「7단계 저장점」, README와 설정의 단계 7이 일치했고 Git 작업 폴더는 깨끗했습니다. 현재 설정 단계는 8입니다. 기존 자료·주소·화면 메뉴와 로그인·자기 메모 CRUD·소유자 검사, 기기 등록·가상 복합 사건 추가 확인 규칙을 보존했습니다.
+
+### 자원 ID와 구역
+
+상세 계약은 [docs/RESOURCE_ZONES.md](docs/RESOURCE_ZONES.md)에 있습니다. 서버가 서비스와 경로에서 `notes:ID`, `announcements:ID`, `instructor-materials:ID`를 구별합니다. 기존 메모 JSON은 유지하고 `X-Resource-Id` 헤더로 자원을 표시합니다. 판정기 계약에 role이나 resourceId 필드는 추가하지 않았습니다.
+
+- 메모: notes 서비스의 `GET /notes/:id`와 실제 단건 경로만 허용 후보입니다. ID 없는 전체 목록은 거부하며 ID를 UUID로 제한하지 않습니다. 주인 비교는 자료 API에서 검증된 사용자와 저장된 owner_id로 수행합니다.
+- 반 공지(강사 작성): announcements 서비스의 `GET /announcements/:id`만 허용 후보입니다. 학생 경로의 POST·PUT·PATCH·DELETE는 강사를 포함해 모두 거부합니다.
+- 강사 자료: instructor-materials 서비스는 판정기에서 모두 거부하며 직접 자료 API도 자료를 내보내지 않습니다.
+- `resource_zone` 규칙은 method·service·route·실제 path를 함께 비교합니다. 알 수 없는 경로·목록·쓰기·쿼리 선택·경로 중첩·이동·예약 기능 이름은 기본 거부합니다. ID와 같은 깊이의 export 기능은 만들지 않았습니다. 이유 코드는 기존 `starter_not_ready`를 재사용합니다. 허용 후보에도 기존 기기·추가 확인 규칙이 적용됩니다.
+
+### API 재검사와 실제 준비 상태
+
+기존 메모 API는 모든 조회·수정·삭제에 검증된 사용자 ID의 owner_id 조건을 유지하고 단건 응답의 ID·소유자를 다시 확인합니다. 타인·소유자 없는 메모는 404입니다. 새 공지 API는 저장된 반 소속을 대조해 같은 반 공지만 반환하며 다른 반은 404, 소속 없음은 403입니다. 화면 메뉴·본문 role·헤더는 권한 근거로 쓰지 않습니다. 오류 사유는 짧은 고정 코드로 반환합니다.
+
+강사의 공지 수정은 **PUT /api/admin/announcements/:id**의 별도 서버 관리 경로입니다. 판정기에서는 이 경로를 허용하지 않습니다. 서버의 저장된 instructor 권한 확인과 DB 함수의 같은 반 권한 재검사를 모두 거칩니다. 공지 수정 본문에는 title/body만 허용합니다.
+
+공지·반 소속 테이블과 관리용 DB 함수 준비 SQL은 [docs/STAGE8_STORAGE.sql](docs/STAGE8_STORAGE.sql)에 제안만 했으며 **실제 DB에 적용하지 않았습니다**. 기존 메모 변경이나 자료·사용자 삽입은 없습니다. 미준비 상태의 502/503을 접근 제어 성공으로 보고하지 않습니다. 실제 공지 읽기·강사 수정·운영 엔진의 새 서비스 등록은 미확인입니다. 이전 단계의 실제 재로그인 연결 실측도 여전히 미실행입니다.
+
+### 확인 순서와 결과
+
+1. `npm run decider:test`: 기존 기기·복합 사건·가상 재확인 4항목 통과.
+2. `npm run fixture:7`: 정상 allow, 복합 사건 step_up.
+3. `node --experimental-test-module-mocks --test test/zones-stage8.test.mjs test/decider-stage7.test.mjs test/notes-auth.test.mjs`: 가상 판정·모의 API 시험 8개 통과. 비UUID 메모 단건 허용, 목록·공지 쓰기·강사 자료·미지 경로·쿼리 거부, 직접 API의 타인 메모·다른 반 공지 거부, 역할 위조 거부와 저장된 강사 권한을 시험했습니다. 실제 계정·DB 시험은 아닙니다.
+4. `npm run build -- --local`: 로컬 빌드 성공. 화면 메뉴 변경 없음.
+5. 실제 화면 확인은 기존 자료실에서 **로그인 → 자기 메모 열기**로 합니다. 구역 판정의 목록 거부와 공지·강사 권한 확인은 메뉴 노출만으로 확인하지 않고, 준비된 엔진·DB에서 직접 API/단건 요청으로 별도 확인해야 합니다. 이번에는 실제 계정 시험을 하지 않았습니다.
+
+제출 묶음 첫 실행은 기존 자기 점검의 2~7단계 제한으로 실패했습니다. 첫 오류만 근거로 `src/attack-check.mjs`의 허용 단계에 8을 추가했습니다.
+
+설정의 `allowedRoutes`는 판정기가 허용 후보로 삼는 **GET /api/notes/:id**, **GET /api/announcements/:id** 두 경로뿐입니다. 기존 Vercel 배포 주소, Supabase 로그인 발급자·공개키 주소·audience, 원본 메모 API 주소, judgeIssuer, 미설정 restoreRoute는 보존했습니다. 기존 직접 API의 CRUD를 판정기 경로 허용과 혼동하지 않습니다. 커밋 후 `npm run bundle`은 실제 HTTP 자기 점검을 기록하며 심판 판정이나 실제 소유자·강사 시험을 대신하지 않습니다. 생성 JSON과 bundle-notes.json은 커밋하지 않습니다.
+
+## 이전 저장점: 「7단계 저장점」 — 2026-11-02 (한국 시간)
 
 시작 시 마지막 커밋 `b0329bb` 「6단계 저장점」과 README·설정의 단계 6은 일치했고 Git 작업 폴더는 깨끗했습니다. 6단계 배포도 같은 커밋과 단계로 확인됐습니다. 아래 이전 저장점의 미배포 설명은 당시 기록입니다. 현재 `aleph.config.json.step`은 7입니다.
 

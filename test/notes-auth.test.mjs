@@ -98,11 +98,10 @@ test('simulated A CRUD follows the public contract and anonymous requests never 
   process.env.SUPABASE_URL = 'https://auth-fixture.supabase.co';
   process.env.SUPABASE_SECRET_KEY = 'test-only';
   const routing = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url)));
-  assert.deepEqual(routing.rewrites, [{ source: '/api/notes/:id', destination: '/api/notes?noteId=:id' }]);
+  assert.deepEqual(routing.rewrites[0], { source: '/api/notes/:id', destination: '/api/notes?noteId=:id' });
   const actualConfig = JSON.parse(await readFile(new URL('../aleph.config.json', import.meta.url)));
   assert.deepEqual(actualConfig.allowedRoutes, [
-    'GET /api/notes', 'POST /api/notes', 'GET /api/notes/:id',
-    'PUT /api/notes/:id', 'DELETE /api/notes/:id',
+    'GET /api/notes/:id', 'GET /api/announcements/:id',
   ]);
   globalThis.fetch = async (url, options) => {
     reads++;
@@ -240,6 +239,7 @@ test('simulated A/B retain own CRUD and cannot access or transfer another owner\
       assert.equal(records.get(added.body.id).owner_id, owner);
       const own = await call(account, 'GET', added.body.id);
       assert.equal(own.statusCode, 200);
+      assert.equal(own.headers['X-Resource-Id'], `notes:${added.body.id}`);
       assert.deepEqual(own.body, { id: added.body.id, title: 'test', body: 'test' });
       const edited = await call(account, 'PUT', added.body.id, { title: 'updated', body: 'updated' });
       assert.equal(edited.statusCode, 200);

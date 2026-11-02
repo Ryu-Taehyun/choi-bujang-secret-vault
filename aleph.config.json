@@ -1,5 +1,5 @@
 {
-  "step": 7,
+  "step": 8,
   "repoUrl": "https://github.com/Ryu-Taehyun/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-flax.vercel.app/",
   "sampleMarker": "SAMPLE_NOTE_1",
@@ -10,11 +10,8 @@
     "audience": "authenticated"
   },
   "allowedRoutes": [
-    "GET /api/notes",
-    "POST /api/notes",
     "GET /api/notes/:id",
-    "PUT /api/notes/:id",
-    "DELETE /api/notes/:id"
+    "GET /api/announcements/:id"
   ],
   "originalApiUrl": "https://lgpldyanjdhloxlslvrn.supabase.co/rest/v1/training_notes",
   "restoreRoute": null

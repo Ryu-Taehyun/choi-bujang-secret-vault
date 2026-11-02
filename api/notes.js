@@ -35,6 +35,7 @@ export default async function handler(request, response) {
     return response.status(400).json({ error: 'INVALID_NOTE_ID' });
   }
   const id = single ? routeId.toLowerCase() : null;
+  response.setHeader('X-Resource-Id', single ? `notes:${id}` : 'notes:collection');
   let input;
   let newId;
   if (request.method === 'POST' || request.method === 'PUT') {
@@ -108,7 +109,7 @@ export default async function handler(request, response) {
     if (!upstream.ok) return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });
     const rows = await upstream.json();
     if (!Array.isArray(rows) || (single && rows.length > 1)
-        || rows.some(row => !row || row.owner_id !== identity.userId
+        || rows.some(row => !row || row.owner_id !== identity.userId || (single && row.id !== id)
           || typeof row.id !== 'string' || typeof row.title !== 'string'
           || typeof row.content !== 'string')) {
       return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });

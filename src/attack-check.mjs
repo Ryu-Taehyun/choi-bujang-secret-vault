@@ -1,6 +1,6 @@
 // Student self-checks only: never a judge verdict, and never include note bodies.
 export async function runAttackChecks(config) {
-  if (![2, 3, 4, 5, 6, 7].includes(config.step)) throw new Error('현재 자기 점검은 2~7단계용입니다.');
+  if (![2, 3, 4, 5, 6, 7, 8].includes(config.step)) throw new Error('현재 자기 점검은 2~8단계용입니다.');
   const base = new URL(config.publicAppUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search
       || base.hash || base.pathname !== '/' || base.hostname.endsWith('.example')) {
@@ -43,6 +43,16 @@ export async function runAttackChecks(config) {
       return `HTTP ${r.status}; 단계 ${data.step === config.step ? '일치' : '불일치'}; 저장소 ${sameRepo ? '일치' : '불일치'}; 배포 커밋 ${sha}`;
     });
     // A login/CRUD and B access have not run. Never fabricate authenticated results.
+    if (config.step >= 8) {
+      await check('anonymous_announcement_rejection', '/api/announcements/demo', 'GET',
+        '무로그인 공지 단건 조회 HTTP 401', async r => `HTTP ${r.status}`);
+      await check('announcement_write_rejection', '/api/announcements/demo', 'PUT',
+        '공지 학생 경로 쓰기 HTTP 405', async r => `HTTP ${r.status}`);
+      await check('anonymous_material_rejection', '/api/instructor-materials/demo', 'GET',
+        '무로그인 강사 자료 조회 HTTP 401', async r => `HTTP ${r.status}`);
+      await check('anonymous_admin_rejection', '/api/admin/announcements/demo', 'PUT',
+        '무로그인 관리 경로 수정 HTTP 401', async r => `HTTP ${r.status}`);
+    }
     return attempts;
   }
   await check('public_api_read', '/api/notes', 'GET', '설정 완료 시 가상 메모 네 건; 공개 API 약점 별도 기록', async r => {
