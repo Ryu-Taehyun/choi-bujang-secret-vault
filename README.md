@@ -2,7 +2,28 @@
 
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 학습에 사용하는 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
-## 최신 저장점: 「4단계 저장점」 — 2026-10-30 (한국 시간)
+## 최신 저장점: 「6단계 저장점」 — 2026-11-02 (한국 시간)
+
+`aleph.config.json.step`은 6입니다. 마지막 기준 커밋 `1595847`에서 원본 API 주소가 등록됐으나 README에는 미설정으로 남아 있던 차이를 정리했습니다. 아래 4단계 이하 설명은 당시 기록입니다.
+
+- 기존 로그인·자기 메모 CRUD·API 소유자 검사는 보존했습니다. 판정 요청의 사용자는 엔진이 확인한 `subjectId`, 기기 등록 여부는 최상위 `deviceRegistered`입니다. 사용자 ID를 임의로 추가하거나 Supabase 사용자 번호와 직접 비교하지 않습니다.
+- `device_registered` 규칙은 `deviceRegistered === true`인 `notes` 서비스의 GET 읽기(`GET /notes`, `GET /notes/:id`)만 `allow`·`approved`로 허용합니다. 미등록·누락·불리언 true가 아닌 값은 `deny`·`device_not_registered`로 거부합니다. 기존 `starter.deny`는 다른 요청의 기본 거부로 보존했습니다. 응답 다섯 항목과 함수 계약은 유지했습니다.
+- 설정을 코드와 대조했습니다. 배포 주소는 `https://choi-bujang-secret-vault-flax.vercel.app/`, 로그인 발급자는 `https://lgpldyanjdhloxlslvrn.supabase.co/auth/v1`, 공개키 주소는 발급자의 `/.well-known/jwks.json`, audience는 `authenticated`입니다. 기존 다섯 `/api/notes` 허용 경로와 `judgeIssuer`는 보존했습니다. 엔진 판정 경로 `/notes`와 공개 API 경로 `/api/notes`를 구분합니다.
+- 원본 API는 `https://lgpldyanjdhloxlslvrn.supabase.co/rest/v1/training_notes`로 등록돼 있습니다. `restoreRoute`는 미설정입니다. 주소 등록만으로 원본 API 차단이나 5단계 전체 보호를 검증한 것은 아닙니다.
+
+### 확인 순서와 실제 결과
+
+1. 저장소 폴더에서 `npm run decider:test`를 실행합니다. 별도로 설치할 접속 프로그램이나 설치 명령은 없습니다.
+2. 2026-11-02 실제 출력: `통과 · 등록 기기의 정상 요청`, `통과 · 미등록 기기의 가상 요청`.
+3. 같은 가상 요청의 응답을 별도로 확인했습니다. 등록 기기는 `allow`·`approved`, 미등록과 등록 여부 누락은 `deny`·`device_not_registered`였습니다. 문자열 true도 거부됐고 읽기 외 요청에는 기존 기본 거부가 유지됐습니다.
+4. 이 시험은 로컬 가상 요청 연습입니다. 실제 릴레이는 미등록 기기를 판정기보다 먼저 차단하며, 미등록 기기 공격은 심판이 수행합니다. 심판 통과·실제 기기 등록·실제 접속 성공을 확인한 결과가 아닙니다.
+5. 실제 화면 확인은 운영 측의 기기 등록 절차를 마친 뒤 자료실에서 **로그인 → 메모 목록/카드 열기** 순서입니다. 정상 등록 기기의 읽기는 허용돼야 하며 미등록 요청은 거부돼야 합니다. 이번 작업에서 운영 등록 화면·실제 계정·DB 권한·최신 배포는 검증하지 않았습니다.
+
+제출 묶음의 첫 실행은 자기 점검의 2~4단계 제한으로 실패했습니다. `src/attack-check.mjs`의 허용 단계를 2~6으로 확장했고 기존 HTTP 점검 내용은 유지했습니다.
+
+인증서·CA·서명 키·개인키를 새로 만들거나 저장하지 않았습니다. 커밋 후 `npm run bundle`로 제출 JSON을 생성합니다. 묶음의 HTTP 자기 점검은 등록된 기존 배포를 대상으로 하므로 현재 로컬 규칙의 배포나 심판 판정을 증명하지 않습니다. `bundle-notes.json`과 `artifacts/submission.json`은 Git에 포함하지 않습니다.
+
+## 이전 저장점: 「4단계 저장점」 — 2026-10-30 (한국 시간)
 
 실제 구현 단계 `aleph.config.json.step`은 **4**입니다. 이번 저장점에는 API 소유자 검사가 포함됩니다. DB의 RLS·최소 권한 SQL은 제안만 했으며 적용 여부와 실제 계정 시험은 미확인입니다. 따라서 4단계 전체 보호가 검증됐다는 뜻은 아닙니다. 아래 1·2단계 설명과 배포 결과는 이전 기록입니다.
 

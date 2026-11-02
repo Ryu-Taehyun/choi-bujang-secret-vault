@@ -1,6 +1,6 @@
 // Student self-checks only: never a judge verdict, and never include note bodies.
 export async function runAttackChecks(config) {
-  if (![2, 3, 4].includes(config.step)) throw new Error('현재 자기 점검은 2~4단계용입니다.');
+  if (![2, 3, 4, 5, 6].includes(config.step)) throw new Error('현재 자기 점검은 2~6단계용입니다.');
   const base = new URL(config.publicAppUrl);
   if (base.protocol !== 'https:' || base.username || base.password || base.search
       || base.hash || base.pathname !== '/' || base.hostname.endsWith('.example')) {
