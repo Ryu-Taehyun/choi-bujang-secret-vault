@@ -8,7 +8,7 @@ import * as url from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 const root = path.resolve(import.meta.dirname, '..');
-async function sandbox({ realNetwork = false } = {}) {
+async function sandbox({ realNetwork = false, failRoute = null, statusOverride = null } = {}) {
   const calls = [], imports = new Set(), output = [];
   const sandboxProcess = { env: process.env, stdout: { write: value => output.push(value) },
     stderr: { write: value => output.push(value) }, exitCode: 0 };
@@ -19,6 +19,9 @@ async function sandbox({ realNetwork = false } = {}) {
     assert.ok(['GET', 'HEAD'].includes(options.method ?? 'GET'), 'write must never reach fetch');
     assert.equal(options.signal, undefined);
     calls.push({ method: options.method, route: address.pathname });
+    if (address.pathname === failRoute) throw new Error('SIMULATED_NO_RESPONSE');
+    if (statusOverride !== null) return { status: statusOverride,
+      text() { throw new Error('BODY_MUST_NOT_BE_READ'); }, json() { throw new Error('BODY_MUST_NOT_BE_READ'); } };
     if (realNetwork) return fetch(target, options);
     const status = address.pathname === '/data.json' ? 404
       : address.pathname.startsWith('/api/') ? 401 : 200;
@@ -86,6 +89,19 @@ test('이전 2단계 POST 점검도 네트워크 호출 없이 not_run이다', a
   const attempts = await runAttackChecks({ step: 2, publicAppUrl: 'https://vault-fixture.vercel.app/', repoUrl: 'https://github.com/fixture/vault' });
   assert.equal(attempts.find(item => item.attackId === 'api_method_rejection').observed, 'not_run');
   assert.equal(runner.calls.length, 4);
+});
+test('observed는 받은 상태 그대로이며 응답 없는 요청은 not_run이다', async () => {
+  const config = JSON.parse(fs.readFileSync(path.join(root, 'aleph.config.json'), 'utf8'));
+  const runner = await sandbox({ statusOverride: 503 });
+  const { runAttackChecks } = await runner.run('src/attack-check.mjs');
+  const attempts = await runAttackChecks(config);
+  assert.equal(attempts.filter(item => item.observed === 'HTTP 503').length, 7);
+  assert.equal(attempts.filter(item => item.observed === 'not_run').length, 2);
+  const failed = await sandbox({ failRoute: '/api/notes' });
+  const checker = await failed.run('src/attack-check.mjs');
+  const withoutResponse = await checker.runAttackChecks(config);
+  assert.equal(withoutResponse.find(item => item.attackId === 'anonymous_list_rejection').observed, 'not_run');
+  assert.equal(withoutResponse.find(item => item.attackId === 'invalid_login_rejection').observed, 'not_run');
 });
 test('전체 bundle은 허용 모듈·읽기 전용 git·GET만으로 JSON 생성까지 끝난다 (커밋 후)', async () => {
   const runner = await sandbox(); await runner.run('scripts/bundle.mjs');

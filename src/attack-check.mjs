@@ -8,7 +8,7 @@ export async function runAttackChecks(config) {
     throw new Error('실제 HTTPS 배포 주소를 확인하세요.');
   }
   const attempts = [];
-  async function check(attackId, path, method, expected, summarize, headers = {}) {
+  async function check(attackId, path, method, expected, _summarize, headers = {}) {
     // The submission runner permits only public HTTPS GET/HEAD. Do not attempt
     // a write and convert its exception into a claimed rejection result.
     if (method !== 'GET' && method !== 'HEAD') {
@@ -21,9 +21,12 @@ export async function runAttackChecks(config) {
         method, redirect: 'error',
         headers: { 'Cache-Control': 'no-cache', ...headers },
       });
-      observed = await summarize(response);
+      // Record only a received status, never infer success from expectations or
+      // copy a previous run's description. Do not read response bodies here.
+      observed = Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
+        ? `HTTP ${response.status}` : 'not_run';
     } catch {
-      observed = '요청 실패: 접속 또는 응답 처리를 확인하지 못함';
+      observed = 'not_run';
     }
     attempts.push({ attackId, expected, observed });
   }
