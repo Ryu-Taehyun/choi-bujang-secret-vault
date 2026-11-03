@@ -2,7 +2,68 @@
 
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 학습에 사용하는 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
-## 최신 저장점: 「9단계 저장점」 — 2026-11-03 (한국 시간)
+## 최신 저장점: 「10단계 저장점」 — 2026-11-03 (한국 시간)
+
+시작 시 마지막 커밋 `04a46e9` 「9단계 저장점」, README 최신 기록, 설정 단계 9가 일치했고 작업 폴더는 깨끗했습니다. 현재 설정 단계는 10입니다. 기존 API·판정기·탐지기·화면과 운영 데이터·정책은 변경하지 않았습니다.
+
+### 안전 정책과 검증 범위
+
+복원 버전은 `stage9-safe-v1`입니다. `recovery/safe-policy.json`에 기존 판정기·보조 규칙·탐지기·서버 API 소유자/구역 검사·allowedRoutes·8단계 DB 준비 SQL의 사본과 10단계 DB 목표 SQL을 묶었습니다. SHA-256은 `7fa7cc0eb2682be9acb76f48a0012f19662da12bbf4e79f51e22061920263ecf`이며 `recovery/safe-policy.sha256`과 대조합니다. Git의 검토된 저장점에서 이 두 파일을 함께 신뢰하며, 침공된 시험 파일로 기준 사본이나 해시를 다시 만들지 않습니다. `.gitattributes`는 사본의 바이트를 줄바꿈 변환 없이 보존합니다.
+
+**실제 DB의 정책 덤프·권한 조회·B 계정 메모 원본은 제공되지 않았습니다.** 따라서 `dbAccess.ownerOnly`는 독립 로컬 시험 저장소의 소유자 정책이며 `liveDbVerified:false`입니다. [DB 목표 SQL](docs/STAGE10_SAFE_DB.sql)은 이전 README의 소유자 정책을 구체화한 제안이고 운영 DB에서 읽은 정책 사본이 아닙니다. 실제 DB 정책 복원은 원본 확보·검토 전까지 중단 상태입니다. PostgreSQL의 기존 permissive 정책은 OR로 합쳐지므로 이 SQL을 추가하는 것만으로 보호가 완성되지 않습니다. 이번 도구는 운영 DB 연결·SQL 실행 기능을 갖지 않습니다.
+
+### 시험 정책 복원: 먼저 계획, 그다음 확인
+
+저장소 폴더에서 처음 한 번 `npm run recovery -- init`으로 `.recovery-private/`에 비공개 B 가상 메모 사본과 시험 정책·자료·감사 상태를 만듭니다. 기존 사본은 덮어쓰지 않습니다. 이 폴더와 `artifacts/`는 Git 및 공개 빌드 대상이 아닙니다. 백업 본문과 trial.json을 출력하거나 제출하지 않습니다. 별도 장치·보호된 위치에 기준 사본·해시·비공개 메모 사본·anchor를 함께 보관해야 하며, 백업과 해시를 모두 바꿀 수 있는 공격자에 대한 서명/외부 인증 기능은 아닙니다.
+
+1. `npm run recovery -- invade`: 시험 사본의 `dbAccess.ownerOnly` 한 규칙만 true에서 false로 바꾸고 감사 사건을 추가합니다. 운영 파일과 다른 서비스 규칙은 보존합니다.
+2. `npm run recovery -- plan`: 안전 버전·기준 해시·시험 상태 해시·차이만 표시합니다. 이번 차이는 `/dbAccess/ownerOnly: false → true` 한 항목입니다.
+3. 표시된 버전과 변경 범위를 확인한 뒤 `npm run recovery -- apply '계획에 표시된 confirmation'`을 실행합니다. 확인값 누락·불일치, 계획 이후 변경, 사본 누락·해시 불일치면 변경 없이 중단합니다. 승인한 계획의 상태 전체가 달라지면 새 계획을 확인해야 합니다.
+4. `npm run recovery -- plan`에서 차이 0건을 확인합니다. 시험 정책 영역만 복원하고 다른 서비스·메모·기존 감사 사건을 보존하며 복원 감사 사건만 추가합니다. 쓰기 잠금과 파일 교체로 동시에 실행하는 복구의 충돌을 막습니다. 중단으로 writer.lock이 남았다면 실행 중인 복구가 없는지 확인하고 별도 검토해야 하며 자동으로 잠금을 지우지 않습니다.
+
+이번 로컬 실행에서 복원 전 B의 A 자료 접근이 허용되는 침공 상태를 재현했고, 복원 뒤 A 자기 읽기 허용·B의 A 읽기 거부·정책 차이 0건을 확인했습니다. 운영 정책 복원이나 실제 A/B 로그인 증거는 아닙니다.
+
+### B의 한 건만 복구하는 POST 서비스
+
+서비스는 별도 **recovery-lab**, 경로는 **POST http://127.0.0.1:43110/restore/notes/20000000-0000-4000-8000-000000000002**입니다. 복구 대상 ID는 `20000000-0000-4000-8000-000000000002`, 소유자는 로컬 B 가명 `10000000-0000-4000-8000-000000000002`로 고정합니다. 실제 Supabase B 계정 ID라고 주장하지 않습니다. 운영 자료 경로와 판정기의 allowedRoutes에는 이 경로를 추가하지 않았으며 `restoreRoute:null`은 운영 복구 경로 미연결을 뜻합니다.
+
+`npm run recovery -- serve`로 루프백 서버를 시작합니다. 이 서비스는 서버가 정한 B 시험 계정만 사용하며 브라우저 Origin/Sec-Fetch 요청과 클라이언트의 ID·소유자·본문 지정은 거부합니다. 운영용 인증 서비스가 아니며 공용 호스트에 노출하지 않습니다. 별도 PowerShell 창에서 먼저 다음을 실행합니다. 응답은 버전·ID·소유자·내용 해시와 확인 계획뿐입니다.
+
+```powershell
+$restoreUrl = 'http://127.0.0.1:43110/restore/notes/20000000-0000-4000-8000-000000000002'
+$restorePlan = Invoke-RestMethod -Uri $restoreUrl -Method Post -ContentType 'application/json' -Body '{"preview":true}'
+$restorePlan | ConvertTo-Json -Depth 8
+```
+
+위 계획의 한 건과 버전을 확인한 **다음에만** 아래 실행으로 복원합니다.
+
+```powershell
+Invoke-RestMethod -Uri $restoreUrl -Method Post -ContentType 'application/json' -Body (@{ confirmation = $restorePlan.confirmation } | ConvertTo-Json)
+```
+
+비공개 note-backup.json의 해시를 note-anchor.json과 대조하고 ID·B 소유자·`SHA-256(JSON.stringify([title,content]))`를 확인합니다. 다른 ID·다른 계정·기존 행의 다른 소유자·사본 변조·오래된 확인값은 거부합니다. 삭제됐다면 그 ID만 추가하고, 남아 있다면 B의 같은 ID 한 건만 대체합니다. 다른 메모·정책·감사 이력은 유지하며 복원 감사 사건을 추가합니다. 응답에는 메모 본문이 없습니다.
+
+이번 시험 사본에서 삭제 후 실제 로컬 POST 복원 HTTP 200을 확인했습니다. 대상 ID·소유자는 위 값, 내용 해시는 `9f7ddc331db1cac0ffa895f8f8fda7798e9b082a28302f23adb9def43c594ef6`으로 비공개 사본과 일치했습니다. 다른 메모·정책·기존 감사 이력의 해시도 유지됐습니다. `init`을 새 위치에서 실행하면 새 비공개 내용과 해시가 생성되므로 그때의 anchor/계획을 기준으로 확인합니다.
+
+### 복구 뒤 1~9단계 재검사 순서
+
+| 순서 | 재실행·확인 위치 | 정상 / 금지 결과 | 이번 결과 |
+| --- | --- | --- | --- |
+| 1 | `npm run recovery:test` | 사전 계획·정책 복원·B 한 건 POST 복원 / 누락·변조·다른 계정·확인값 불일치 거부 | 로컬 시험 4개 통과 |
+| 2 | `npm run build -- --local` | 정적 빌드 성공, 공개 data.json·메모 사본 없음 | 성공 |
+| 3 | `node --experimental-test-module-mocks --test test/notes-auth.test.mjs test/zones-stage8.test.mjs test/decider-stage7.test.mjs test/detect-stage9.test.mjs` | 자기 CRUD 유지 / 무로그인·타인 자료·소유자 변경·다른 반·역할 위조·금지 구역 거부 | 모의 시험 13개 통과 |
+| 4 | `npm run decider:test` | 등록 정상·가상 재확인 allow / 미등록 deny·복합 사건 step_up | 가상 4항목 통과 |
+| 5 | `npm run detect:test` | 120건 이하·느린 조회·다른 사용자 observe / 같은 sub의 10분 내 121건 이상 propose_revocation | 가상 6항목 통과 |
+| 6 | 커밋 뒤 `npm run bundle` | 실제 배포의 화면·정적 파일 제거·무로그인/잘못된 로그인·공지 쓰기 거부·배포 커밋 대조 | 실행 결과는 제출 JSON에 기록하며 로컬 시험과 구분 |
+| 7 | 실제 자료실 **로그인 → 자기 메모 열기**, A/B 별도 세션으로 자기 CRUD 후 상대 메모 직접 GET·PUT·DELETE | A/B 정상 유지 / 타인 메모 404·소유자 변경 403·무로그인 401 | 실제 계정·DB 시험 미실행 |
+| 8 | 운영 측 원본 API·기기 등록·추가 로그인·검증 사건 전달/접속 회수 재검사 | 원본 우회·미등록·복합 이상을 기존 규칙으로 제한, 정상 재확인 유지 | 운영 연결 시험 미실행 |
+| 9 | 실제 DB에서 정책/권한 덤프·RLS·기존 정책 목록·자료/감사 지문 대조 | 검증한 안전 버전만 선택 복원, 다른 서비스·감사 보존 | DB 원본 미제공으로 복원·검증 미실행 |
+
+가상 판정·모의 DB/API·로컬 복구는 실제 운영 복원이나 심판 통과를 뜻하지 않습니다. 기존 Vercel 주소·로그인 발급자·공개키 주소·audience·두 GET 허용 경로·원본 API 주소·judgeIssuer를 대조해 보존했습니다. 단계만 10으로 올렸으며 판정기 RULE_IDS는 실제 기존 4개 그대로입니다. 생성 JSON·bundle-notes.json·비공개 메모 사본은 커밋하지 않습니다.
+
+제출 묶음 첫 실행은 자기 점검의 2~9단계 제한으로 실패했습니다. 첫 오류만 근거로 `src/attack-check.mjs`의 허용 범위를 10까지 확장했습니다. 실제 HTTP 점검은 기존 배포를 대상으로 하며 로컬 복구 결과를 운영 복구 성공으로 기록하지 않습니다.
+
+## 이전 저장점: 「9단계 저장점」 — 2026-11-03 (한국 시간)
 
 시작 시 마지막 커밋 `8b1a036` 「8단계 저장점」과 README·설정 단계 8은 일치했고 Git 작업 폴더는 깨끗했습니다. 현재 설정 단계는 9입니다. 기존 로그인·자기 메모 CRUD·소유자 검사·자원 구역·등록 기기·추가 확인 규칙과 화면을 보존했습니다.
 
