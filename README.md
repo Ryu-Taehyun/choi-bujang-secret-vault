@@ -6,6 +6,16 @@
 
 시작 시 마지막 커밋 `04a46e9` 「9단계 저장점」, README 최신 기록, 설정 단계 9가 일치했고 작업 폴더는 깨끗했습니다. 현재 설정 단계는 10입니다. 기존 API·판정기·탐지기·화면과 운영 데이터·정책은 변경하지 않았습니다.
 
+### 검증 보강과 실행 기록
+
+심판 오류 S10_BACKUP_UNVERIFIED·S10_RESTORE_MISMATCH·S10_RETEST_MISSING를 받은 뒤 확인했을 때 GitHub main과 공개 배포는 여전히 9단계 `04a46e9`였습니다. 로컬 10단계 복구 서비스와 심판이 호출할 운영 요청 계약도 연결되지 않았습니다. 아래 로컬 검증 결과를 심판 오류 해결 또는 운영 복구 성공으로 해석하지 않습니다.
+
+복원 실행 시 안전 사본·메모 사본·기준 정보를 다시 읽고 승인 계획의 사본 해시·기준 해시·상태 해시와 대조합니다. 미리보기 후 삭제·변조·교체가 있으면 기존 확인값으로 복원하지 않습니다. 임시 저장 파일을 다시 읽어 검증한 뒤 교체하고, 저장된 상태도 다시 읽어 비교합니다. 메모 응답의 ID·소유자·내용 해시는 계획이나 메모리의 사본값을 복사하지 않고 저장된 행에서 계산합니다.
+
+복구 뒤 `npm run recovery:retest`를 실행합니다. 현재 복원 상태와 사본을 먼저 검증하고, 복원된 소스 사본으로 판정기·탐지기 요청을 실행하며 로컬 A/B 자료 접근을 재시험합니다. 정상·금지 요청 21건의 실행 결과와 현재 상태 해시를 `.recovery-private/retest-report.json`에 남깁니다. 실행 전에는 모든 항목을 not_run으로 초기화하고 실제 수행한 항목만 passed/failed로 바꿉니다. 검증 실패 시 이전 성공 보고서를 새 성공처럼 재사용하지 않습니다. 운영 DB·실제 A/B 계정 시험은 별도 not_run 항목으로 남습니다.
+
+추가 회귀 시험을 포함해 `npm run recovery:test`는 8개가 통과했고, 현재 B 한 건의 로컬 POST 재복원 후 재시험 21건도 실행해 통과했습니다. 운영 복구 요청의 서비스·경로·사본 제공 방식은 저장소에 없으므로 임의 계약이나 공개 복구 권한을 만들지 않았습니다.
+
 ### 안전 정책과 검증 범위
 
 복원 버전은 `stage9-safe-v1`입니다. `recovery/safe-policy.json`에 기존 판정기·보조 규칙·탐지기·서버 API 소유자/구역 검사·allowedRoutes·8단계 DB 준비 SQL의 사본과 10단계 DB 목표 SQL을 묶었습니다. SHA-256은 `7fa7cc0eb2682be9acb76f48a0012f19662da12bbf4e79f51e22061920263ecf`이며 `recovery/safe-policy.sha256`과 대조합니다. Git의 검토된 저장점에서 이 두 파일을 함께 신뢰하며, 침공된 시험 파일로 기준 사본이나 해시를 다시 만들지 않습니다. `.gitattributes`는 사본의 바이트를 줄바꿈 변환 없이 보존합니다.
@@ -49,7 +59,7 @@ Invoke-RestMethod -Uri $restoreUrl -Method Post -ContentType 'application/json' 
 
 | 순서 | 재실행·확인 위치 | 정상 / 금지 결과 | 이번 결과 |
 | --- | --- | --- | --- |
-| 1 | `npm run recovery:test` | 사전 계획·정책 복원·B 한 건 POST 복원 / 누락·변조·다른 계정·확인값 불일치 거부 | 로컬 시험 4개 통과 |
+| 1 | `npm run recovery:test`, 이어서 `npm run recovery:retest` | 사전 계획·정책 복원·B 한 건 POST 복원 / 누락·변조·교체·다른 계정 거부, 복구 뒤 정상·금지 재시험 | 회귀 8개와 로컬 재시험 21건 통과 |
 | 2 | `npm run build -- --local` | 정적 빌드 성공, 공개 data.json·메모 사본 없음 | 성공 |
 | 3 | `node --experimental-test-module-mocks --test test/notes-auth.test.mjs test/zones-stage8.test.mjs test/decider-stage7.test.mjs test/detect-stage9.test.mjs` | 자기 CRUD 유지 / 무로그인·타인 자료·소유자 변경·다른 반·역할 위조·금지 구역 거부 | 모의 시험 13개 통과 |
 | 4 | `npm run decider:test` | 등록 정상·가상 재확인 allow / 미등록 deny·복합 사건 step_up | 가상 4항목 통과 |

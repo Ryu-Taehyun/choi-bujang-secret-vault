@@ -6,8 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { initialize, loadSafe, readState, writeState, invade, policyPlan, restorePolicy,
-  notePlan, restoreNote, trialRead, digest, TARGET_ID, ACCOUNT_A, ACCOUNT_B } from '../src/recovery.mjs';
+  notePlan, restoreNote, trialRead, digest, sha256, inspectRestored, TARGET_ID, ACCOUNT_A, ACCOUNT_B } from '../src/recovery.mjs';
 import { recoveryHandler } from '../src/recovery-http.mjs';
+import { runRecoveryRetests } from '../src/recovery-retest.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const testRoot = join(root, 'artifacts/recovery-tests');
@@ -137,4 +138,84 @@ test('메모 사본 누락·변조·소유자 충돌·다른 계정·미확인 �
   writeState(dir, state);
   assert.throws(() => notePlan(root, dir, ACCOUNT_B, TARGET_ID), /OWNER_CONFLICT/);
   assert.equal(digest(readState(dir)), digest(state));
+});
+
+test('미리보기 뒤 정책 사본 삭제·변조 시 사본을 다시 읽고 시험 상태를 보존한다', () => {
+  const dir = fixture();
+  const fakeRoot = mkdtempSync(join(testRoot, 'vault-reread-'));
+  mkdirSync(join(fakeRoot, 'recovery'));
+  for (const name of ['safe-policy.json', 'safe-policy.sha256']) {
+    copyFileSync(join(root, 'recovery', name), join(fakeRoot, 'recovery', name));
+  }
+  const plan = policyPlan(fakeRoot, dir);
+  const before = digest(readState(dir));
+  const copyPath = join(fakeRoot, 'recovery/safe-policy.json');
+  const raw = readFileSync(copyPath);
+  unlinkSync(copyPath);
+  assert.throws(() => restorePolicy(fakeRoot, dir, plan.confirmation));
+  assert.equal(digest(readState(dir)), before);
+  writeFileSync(copyPath, raw.toString() + ' ');
+  assert.throws(() => restorePolicy(fakeRoot, dir, plan.confirmation), /HASH_MISMATCH/);
+  assert.equal(digest(readState(dir)), before);
+});
+
+test('미리보기 뒤 메모 사본·기준 해시가 함께 교체돼도 예전 확인값으로 복원하지 않는다', () => {
+  const dir = fixture();
+  const plan = notePlan(root, dir, ACCOUNT_B, TARGET_ID);
+  const before = digest(readState(dir));
+  const backupPath = join(dir, 'note-backup.json');
+  const anchorPath = join(dir, 'note-anchor.json');
+  const copy = JSON.parse(readFileSync(backupPath));
+  copy.extra = 'replacement';
+  const raw = JSON.stringify(copy);
+  const anchor = JSON.parse(readFileSync(anchorPath));
+  anchor.backupHash = sha256(raw);
+  writeFileSync(backupPath, raw);
+  writeFileSync(anchorPath, JSON.stringify(anchor));
+  assert.throws(() => restoreNote(root, dir, ACCOUNT_B, TARGET_ID, plan.confirmation), /STALE/);
+  assert.equal(digest(readState(dir)), before);
+});
+
+test('사본 파일 해시가 맞아도 ID·소유자·내용 해시가 다르면 복원하지 않는다', () => {
+  for (const key of ['id', 'owner_id', 'content']) {
+    const dir = fixture();
+    const before = digest(readState(dir));
+    const backupPath = join(dir, 'note-backup.json');
+    const anchorPath = join(dir, 'note-anchor.json');
+    const copy = JSON.parse(readFileSync(backupPath));
+    copy.note[key] = key === 'owner_id' ? ACCOUNT_A : 'changed-fixture';
+    const raw = JSON.stringify(copy);
+    const anchor = JSON.parse(readFileSync(anchorPath));
+    anchor.backupHash = sha256(raw);
+    writeFileSync(backupPath, raw);
+    writeFileSync(anchorPath, JSON.stringify(anchor));
+    assert.throws(() => notePlan(root, dir, ACCOUNT_B, TARGET_ID), /ID_OWNER_CONTENT_MISMATCH/);
+    assert.equal(digest(readState(dir)), before);
+  }
+});
+
+test('복구 뒤 정상·금지 21건을 실행·기록하고 손상된 상태의 재시도는 미확인으로 남긴다', async () => {
+  const dir = fixture();
+  restorePolicy(root, dir, policyPlan(root, dir).confirmation);
+  const plan = notePlan(root, dir, ACCOUNT_B, TARGET_ID);
+  const result = restoreNote(root, dir, ACCOUNT_B, TARGET_ID, plan.confirmation);
+  const inspected = inspectRestored(root, dir);
+  assert.equal(result.contentHash, inspected.contentHash);
+  const before = digest(readState(dir));
+  const report = await runRecoveryRetests(root, dir);
+  assert.equal(report.status, 'passed');
+  assert.equal(report.results.length, 21);
+  assert.equal(report.results.every(result => result.status === 'passed'), true);
+  assert.equal(report.liveChecks.every(result => result.status === 'not_run'), true);
+  assert.equal(digest(readState(dir)), before);
+  const damaged = readState(dir);
+  damaged.notes.find(note => note.id === TARGET_ID).content += 'changed';
+  writeState(dir, damaged);
+  assert.throws(() => inspectRestored(root, dir), /RESTORED_NOTE_MISMATCH/);
+  const failedRetry = await runRecoveryRetests(root, dir);
+  assert.equal(failedRetry.status, 'blocked');
+  assert.equal(failedRetry.results.every(result => result.status === 'not_run'), true);
+  const saved = JSON.parse(readFileSync(join(dir, 'retest-report.json')));
+  assert.equal(saved.status, 'blocked');
+  assert.equal(saved.results.every(result => result.status === 'not_run'), true);
 });

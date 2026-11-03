@@ -34,7 +34,11 @@ function withLock(dir, action) {
 export function writeState(dir, state) {
   const temp = join(dir, 'trial.tmp');
   writeFileSync(temp, JSON.stringify(state), { mode: 0o600 });
+  if (digest(json(temp)) !== digest(state)) fail('RESTORE_STAGED_STATE_MISMATCH');
   renameSync(temp, join(dir, 'trial.json'));
+  const persisted = readState(dir);
+  if (digest(persisted) !== digest(state)) fail('RESTORE_PERSISTED_STATE_MISMATCH');
+  return persisted;
 }
 export function initialize(root, dir) {
   const safe = loadSafe(root);
@@ -89,11 +93,14 @@ export function restorePolicy(root, dir, confirmation) {
   const plan = policyPlan(root, dir);
   if (confirmation !== plan.confirmation) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
   const safe = loadSafe(root);
+  if (safe.hash !== plan.safeHash) fail('POLICY_COPY_CHANGED_AFTER_PLAN');
   const state = readState(dir);
+  if (digest(state) !== plan.stateHash) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
   state.policy = safe.policy;
   state.audit.push({ event: 'policy_restored', version: plan.version, planHash: confirmation });
-  writeState(dir, state);
-  return { version: plan.version, policyHash: digest(state.policy), changed: plan.changes.length };
+  const persisted = writeState(dir, state);
+  if (digest(persisted.policy) !== digest(safe.policy)) fail('RESTORED_POLICY_MISMATCH');
+  return { version: plan.version, policyHash: digest(persisted.policy), changed: plan.changes.length };
   });
 }
 function verifiedNote(dir) {
@@ -108,12 +115,12 @@ function verifiedNote(dir) {
       || note?.id !== anchor.id || note.owner_id !== anchor.owner_id
       || typeof note.title !== 'string' || typeof note.content !== 'string'
       || digest([note.title, note.content]) !== anchor.contentHash) fail('NOTE_ID_OWNER_CONTENT_MISMATCH');
-  return { anchor, note };
+  return { anchor, note, anchorHash: digest(anchor) };
 }
 export function notePlan(root, dir, actor, id) {
-  loadSafe(root);
+  const safe = loadSafe(root);
   if (actor !== ACCOUNT_B || id !== TARGET_ID) fail('RESTORE_TARGET_FORBIDDEN');
-  const { anchor } = verifiedNote(dir);
+  const { anchor, anchorHash } = verifiedNote(dir);
   const state = readState(dir);
   const current = state.notes.filter(note => note.id === id);
   if (current.length > 1 || (current.length && current[0].owner_id !== ACCOUNT_B)) {
@@ -122,6 +129,7 @@ export function notePlan(root, dir, actor, id) {
   const before = current.length ? { id, owner_id: current[0].owner_id,
     contentHash: digest([current[0].title, current[0].content]) } : null;
   const plan = { kind: 'note', version: anchor.version, stateHash: digest(state),
+    safeHash: safe.hash, backupHash: anchor.backupHash, anchorHash,
     changes: [{ id, before, after: { id, owner_id: anchor.owner_id, contentHash: anchor.contentHash } }] };
   return { ...plan, confirmation: digest(plan) };
 }
@@ -129,18 +137,41 @@ export function restoreNote(root, dir, actor, id, confirmation) {
   return withLock(dir, () => {
   const plan = notePlan(root, dir, actor, id);
   if (confirmation !== plan.confirmation) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
-  const { note, anchor } = verifiedNote(dir);
+  const safe = loadSafe(root);
+  const { note, anchor, anchorHash } = verifiedNote(dir);
+  if (safe.hash !== plan.safeHash || anchor.backupHash !== plan.backupHash
+      || anchorHash !== plan.anchorHash) fail('BACKUP_CHANGED_AFTER_PLAN');
   const state = readState(dir);
+  if (digest(state) !== plan.stateHash) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
   const index = state.notes.findIndex(row => row.id === id);
   if (index < 0) state.notes.push(note);
   else state.notes[index] = note;
   state.audit.push({ event: 'note_restored', id, planHash: confirmation });
-  writeState(dir, state);
-  return { id, owner_id: note.owner_id, contentHash: anchor.contentHash };
+  const persisted = writeState(dir, state);
+  const rows = persisted.notes.filter(row => row.id === id);
+  if (rows.length !== 1 || rows[0].id !== anchor.id || rows[0].owner_id !== anchor.owner_id
+      || digest([rows[0].title, rows[0].content]) !== anchor.contentHash) fail('RESTORED_NOTE_MISMATCH');
+  return { id: rows[0].id, owner_id: rows[0].owner_id,
+    contentHash: digest([rows[0].title, rows[0].content]) };
   });
 }
 export function trialRead(dir, actor, id) {
   const state = readState(dir);
   const note = state.notes.find(row => row.id === id);
   return !!note && (state.policy.dbAccess.ownerOnly ? note.owner_id === actor : true);
+}
+
+// Re-read both private backup and persisted target. Never use a planned hash as
+// evidence of what was actually written.
+export function inspectRestored(root, dir) {
+  const safe = loadSafe(root);
+  const { anchor } = verifiedNote(dir);
+  const state = readState(dir);
+  if (digest(state.policy) !== digest(safe.policy)) fail('RESTORED_POLICY_MISMATCH');
+  const rows = state.notes.filter(row => row.id === anchor.id);
+  if (rows.length !== 1 || rows[0].owner_id !== anchor.owner_id
+      || digest([rows[0].title, rows[0].content]) !== anchor.contentHash) fail('RESTORED_NOTE_MISMATCH');
+  return { scope: 'local-test', policyVersion: safe.version, safeHash: safe.hash,
+    stateHash: digest(state), id: rows[0].id, owner_id: rows[0].owner_id,
+    contentHash: digest([rows[0].title, rows[0].content]) };
 }
