@@ -11,7 +11,7 @@
     "detect:test": "node scripts/detect-test.mjs",
     "fixture:7": "node scripts/fixture-7.mjs",
     "recovery": "node scripts/recovery.mjs",
-    "recovery:test": "node --test test/recovery-stage10.test.mjs",
+    "recovery:test": "node --experimental-test-module-mocks --test test/recovery-stage10.test.mjs test/recovery-race-stage10.test.mjs",
     "recovery:retest": "node scripts/recovery-retest.mjs",
     "xdr:run": "node scripts/xdr-run.mjs"
   },

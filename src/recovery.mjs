@@ -31,11 +31,19 @@ function withLock(dir, action) {
 }
 // A single local transaction replaces policy/one note and appends an audit entry.
 // All writers in the loopback service are synchronous, so plans cannot race writes.
-export function writeState(dir, state) {
+export function writeState(dir, state, beforeReplace = () => {}) {
   const temp = join(dir, 'trial.tmp');
-  writeFileSync(temp, JSON.stringify(state), { mode: 0o600 });
-  if (digest(json(temp)) !== digest(state)) fail('RESTORE_STAGED_STATE_MISMATCH');
-  renameSync(temp, join(dir, 'trial.json'));
+  try {
+    writeFileSync(temp, JSON.stringify(state), { mode: 0o600 });
+    if (digest(json(temp)) !== digest(state)) fail('RESTORE_STAGED_STATE_MISMATCH');
+    // Last gate before publishing the candidate. A failed backup re-read must
+    // leave trial.json and its audit history untouched.
+    beforeReplace();
+    renameSync(temp, join(dir, 'trial.json'));
+  } catch (error) {
+    try { unlinkSync(temp); } catch {}
+    throw error;
+  }
   const persisted = readState(dir);
   if (digest(persisted) !== digest(state)) fail('RESTORE_PERSISTED_STATE_MISMATCH');
   return persisted;
@@ -98,7 +106,11 @@ export function restorePolicy(root, dir, confirmation) {
   if (digest(state) !== plan.stateHash) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
   state.policy = safe.policy;
   state.audit.push({ event: 'policy_restored', version: plan.version, planHash: confirmation });
-  const persisted = writeState(dir, state);
+  const persisted = writeState(dir, state, () => {
+    const latestSafe = loadSafe(root);
+    if (latestSafe.hash !== plan.safeHash) fail('POLICY_COPY_CHANGED_BEFORE_REPLACE');
+    if (digest(readState(dir)) !== plan.stateHash) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
+  });
   if (digest(persisted.policy) !== digest(safe.policy)) fail('RESTORED_POLICY_MISMATCH');
   return { version: plan.version, policyHash: digest(persisted.policy), changed: plan.changes.length };
   });
@@ -147,7 +159,13 @@ export function restoreNote(root, dir, actor, id, confirmation) {
   if (index < 0) state.notes.push(note);
   else state.notes[index] = note;
   state.audit.push({ event: 'note_restored', id, planHash: confirmation });
-  const persisted = writeState(dir, state);
+  const persisted = writeState(dir, state, () => {
+    const latestSafe = loadSafe(root);
+    const latest = verifiedNote(dir);
+    if (latestSafe.hash !== plan.safeHash || latest.anchor.backupHash !== plan.backupHash
+        || latest.anchorHash !== plan.anchorHash) fail('BACKUP_CHANGED_BEFORE_REPLACE');
+    if (digest(readState(dir)) !== plan.stateHash) fail('PLAN_CONFIRMATION_REQUIRED_OR_STALE');
+  });
   const rows = persisted.notes.filter(row => row.id === id);
   if (rows.length !== 1 || rows[0].id !== anchor.id || rows[0].owner_id !== anchor.owner_id
       || digest([rows[0].title, rows[0].content]) !== anchor.contentHash) fail('RESTORED_NOTE_MISMATCH');
