@@ -13,6 +13,8 @@ const config = {
 let verifiedHeaders = [];
 let verifierThrows = false;
 mock.module('../aleph.config.json', { defaultExport: config });
+// This suite retains the existing owner checks for an already approved device.
+mock.module('../src/device-access.mjs', { namedExports: { requireApprovedDevice: async () => true } });
 mock.module('../src/verify-login.mjs', {
   namedExports: {
     createLoginVerifier: () => async authorization => {

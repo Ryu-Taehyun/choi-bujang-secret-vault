@@ -1,6 +1,7 @@
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { randomUUID } from 'node:crypto';
+import { requireApprovedDevice } from '../src/device-access.mjs';
 
 let verifyLogin;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -30,6 +31,7 @@ export default async function handler(request, response) {
     return response.status(503).json({ error: 'LOGIN_UNAVAILABLE' });
   }
   if (!identity) return response.status(401).json({ error: 'INVALID_LOGIN' });
+  if (!await requireApprovedDevice(request, response, identity)) return;
   // Only the verifier's result grants access. Client userId/role are never used.
   if (single && (typeof routeId !== 'string' || (!UUID.test(routeId) && !LEGACY_NOTE_IDS.has(routeId)))) {
     return response.status(400).json({ error: 'INVALID_NOTE_ID' });

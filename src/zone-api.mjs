@@ -1,6 +1,7 @@
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from './verify-login.mjs';
 import { resourceAt } from './resource-zones.mjs';
+import { requireApprovedDevice } from './device-access.mjs';
 
 let verifyLogin;
 export function zoneHandler(service, { admin = false } = {}) {
@@ -25,6 +26,7 @@ export function zoneHandler(service, { admin = false } = {}) {
       identity = await verifyLogin(authorization);
     } catch { return fail(503, 'LOGIN_UNAVAILABLE'); }
     if (!identity) return fail(401, 'INVALID_LOGIN');
+    if (!await requireApprovedDevice(request, response, identity)) return;
     // Instructor material is never available through the student data plane.
     if (service === 'instructor-materials') return fail(403, 'ZONE_FORBIDDEN');
     const prefix = admin ? '/api/admin/announcements/' : '/api/announcements/';

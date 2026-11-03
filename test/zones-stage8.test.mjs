@@ -35,6 +35,8 @@ test('zones allow exact item reads, never lists, functions, queries or writes', 
 
 const authConfig = { identityProvider: { issuer: 'https://auth-fixture.supabase.co/auth/v1' } };
 mock.module('../aleph.config.json', { defaultExport: authConfig });
+// Device denial is tested separately; these are approved-device zone regressions.
+mock.module('../src/device-access.mjs', { namedExports: { requireApprovedDevice: async () => true } });
 mock.module('../src/verify-login.mjs', { namedExports: {
   createLoginVerifier: () => async value => {
     const users = { 'Bearer student-a': 'user-a', 'Bearer student-b': 'user-b',
