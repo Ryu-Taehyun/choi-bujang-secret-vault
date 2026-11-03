@@ -41,7 +41,17 @@ S10_BACKUP_UNVERIFIED가 반복된 뒤 파일 교체 직전의 검증 누락을 
 
 ### B의 한 건만 복구하는 POST 서비스
 
-서비스는 별도 **recovery-lab**, 경로는 **POST http://127.0.0.1:43110/restore/notes/20000000-0000-4000-8000-000000000002**입니다. 복구 대상 ID는 `20000000-0000-4000-8000-000000000002`, 소유자는 로컬 B 가명 `10000000-0000-4000-8000-000000000002`로 고정합니다. 실제 Supabase B 계정 ID라고 주장하지 않습니다. 운영 자료 경로와 판정기의 allowedRoutes에는 이 경로를 추가하지 않았으며 `restoreRoute:null`은 운영 복구 경로 미연결을 뜻합니다.
+서비스는 별도 **recovery-lab**, 경로는 **POST http://127.0.0.1:43110/restore/notes/20000000-0000-4000-8000-000000000002**입니다. `aleph.config.json`의 `restoreRoute`에도 이 시험용 주소를 그대로 기록합니다. 복구 대상 ID는 `20000000-0000-4000-8000-000000000002`, 소유자는 로컬 B 가명 `10000000-0000-4000-8000-000000000002`로 고정합니다. 실제 Supabase B 계정 ID라고 주장하지 않습니다. 운영 자료 경로와 판정기의 allowedRoutes에는 이 경로를 추가하지 않습니다. 이 설정은 루프백의 시험 서비스 주소이며 운영 복구 서비스 등록이나 정책 변경을 뜻하지 않습니다.
+
+설정과 README의 POST 주소 일치 여부는 저장소 폴더의 PowerShell에서 다음 명령으로 확인합니다. `일치`가 정상 결과이며 누락·불일치면 오류로 중단합니다.
+
+```powershell
+$config = Get-Content aleph.config.json -Raw | ConvertFrom-Json
+$readme = Get-Content README.md -Raw
+$documented = [regex]::Match($readme, '\*\*POST (http://127\.0\.0\.1:43110/restore/notes/[0-9a-f-]+)\*\*').Groups[1].Value
+if (!$documented -or $config.restoreRoute -cne $documented) { throw '시험용 POST 주소 불일치' }
+'일치'
+```
 
 `npm run recovery -- serve`로 루프백 서버를 시작합니다. 이 서비스는 서버가 정한 B 시험 계정만 사용하며 브라우저 Origin/Sec-Fetch 요청과 클라이언트의 ID·소유자·본문 지정은 거부합니다. 운영용 인증 서비스가 아니며 공용 호스트에 노출하지 않습니다. 별도 PowerShell 창에서 먼저 다음을 실행합니다. 응답은 버전·ID·소유자·내용 해시와 확인 계획뿐입니다.
 

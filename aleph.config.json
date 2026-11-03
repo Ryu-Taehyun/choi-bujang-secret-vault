@@ -14,5 +14,5 @@
     "GET /api/announcements/:id"
   ],
   "originalApiUrl": "https://lgpldyanjdhloxlslvrn.supabase.co/rest/v1/training_notes",
-  "restoreRoute": null
+  "restoreRoute": "http://127.0.0.1:43110/restore/notes/20000000-0000-4000-8000-000000000002"
 }
