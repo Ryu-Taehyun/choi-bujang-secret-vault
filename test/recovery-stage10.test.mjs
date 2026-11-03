@@ -159,6 +159,23 @@ test('미리보기 뒤 정책 사본 삭제·변조 시 사본을 다시 읽고 
   assert.equal(digest(readState(dir)), before);
 });
 
+test('미리보기 전 사본과 옆 해시를 함께 바꿔도 고정한 안전 버전으로 인정하지 않는다', () => {
+  const dir = fixture();
+  const before = digest(readState(dir));
+  const fakeRoot = mkdtempSync(join(testRoot, 'vault-untrusted-pair-'));
+  mkdirSync(join(fakeRoot, 'recovery'));
+  const copy = JSON.parse(readFileSync(join(root, 'recovery/safe-policy.json'), 'utf8'));
+  copy.policy.sources['src/decider.mjs'] = copy.policy.sources['src/decider.mjs']
+    .replace('request.deviceRegistered !== true', 'false');
+  const raw = JSON.stringify(copy, null, 2) + '\n';
+  writeFileSync(join(fakeRoot, 'recovery/safe-policy.json'), raw);
+  writeFileSync(join(fakeRoot, 'recovery/safe-policy.sha256'), sha256(raw));
+  assert.throws(() => loadSafe(fakeRoot), /POLICY_HASH_MISMATCH/);
+  assert.throws(() => policyPlan(fakeRoot, dir), /POLICY_HASH_MISMATCH/);
+  assert.throws(() => restorePolicy(fakeRoot, dir, 'untrusted'), /POLICY_HASH_MISMATCH/);
+  assert.equal(digest(readState(dir)), before);
+});
+
 test('미리보기 뒤 메모 사본·기준 해시가 함께 교체돼도 예전 확인값으로 복원하지 않는다', () => {
   const dir = fixture();
   const plan = notePlan(root, dir, ACCOUNT_B, TARGET_ID);

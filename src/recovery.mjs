@@ -8,6 +8,13 @@ export const ACCOUNT_A = '10000000-0000-4000-8000-000000000001';
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
 export const digest = value => sha256(JSON.stringify(value));
 const fail = code => { throw new Error(code); };
+// Pinned during the original safety-copy review. Never learn a trusted digest
+// from the mutable backup or its neighbouring checksum file.
+const TRUSTED_POLICY = Object.freeze({
+  version: 'stage9-safe-v1',
+  sourceCommit: '04a46e914962f4c954399def491f19cbdda0e53f',
+  sha256: '7fa7cc0eb2682be9acb76f48a0012f19662da12bbf4e79f51e22061920263ecf',
+});
 const json = path => {
   try { return JSON.parse(readFileSync(path, 'utf8')); }
   catch { fail('RECOVERY_COPY_MISSING_OR_INVALID'); }
@@ -15,9 +22,12 @@ const json = path => {
 export function loadSafe(root) {
   const raw = readFileSync(join(root, 'recovery/safe-policy.json'), 'utf8');
   const expected = readFileSync(join(root, 'recovery/safe-policy.sha256'), 'utf8').trim();
-  if (sha256(raw) !== expected) fail('POLICY_HASH_MISMATCH');
+  if (expected !== TRUSTED_POLICY.sha256 || sha256(raw) !== TRUSTED_POLICY.sha256) {
+    fail('POLICY_HASH_MISMATCH');
+  }
   const copy = JSON.parse(raw);
-  if (copy.schema !== 'vault.safe-policy.v1' || copy.policy.dbAccess.scope !== 'local-test'
+  if (copy.version !== TRUSTED_POLICY.version || copy.sourceCommit !== TRUSTED_POLICY.sourceCommit
+      || copy.schema !== 'vault.safe-policy.v1' || copy.policy.dbAccess.scope !== 'local-test'
       || copy.policy.dbAccess.ownerOnly !== true) fail('INVALID_SAFE_POLICY');
   return { ...copy, hash: expected };
 }
