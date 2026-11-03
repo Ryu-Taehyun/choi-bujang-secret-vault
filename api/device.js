@@ -1,6 +1,7 @@
 import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { establishDeviceCookie, deviceStatus } from '../src/device-access.mjs';
+import { requestAuthorization, cookieWriteAllowed } from '../src/session-auth.mjs';
 
 let verifyLogin;
 export default async function handler(request, response) {
@@ -11,8 +12,9 @@ export default async function handler(request, response) {
     response.setHeader('Allow', 'GET, POST');
     return fail(405, 'METHOD_NOT_ALLOWED');
   }
-  const authorization = request.headers?.authorization;
+  const authorization = requestAuthorization(request);
   if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) return fail(401, 'LOGIN_REQUIRED');
+  if (!cookieWriteAllowed(request)) return fail(403, 'ORIGIN_FORBIDDEN');
   let identity;
   try {
     verifyLogin ??= createLoginVerifier({ config, supabaseSecretKey: process.env.SUPABASE_SECRET_KEY });

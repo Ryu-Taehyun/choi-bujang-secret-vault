@@ -13,7 +13,7 @@
     "recovery": "node scripts/recovery.mjs",
     "recovery:test": "node --experimental-test-module-mocks --test test/recovery-stage10.test.mjs test/recovery-race-stage10.test.mjs",
     "recovery:retest": "node scripts/recovery-retest.mjs",
-    "device:test": "node --experimental-test-module-mocks --test test/device-stage11.test.mjs test/notes-auth.test.mjs test/zones-stage8.test.mjs",
+    "device:test": "node --experimental-test-module-mocks --test test/device-stage11.test.mjs test/session-stage11.test.mjs test/notes-auth.test.mjs test/zones-stage8.test.mjs",
     "xdr:run": "node scripts/xdr-run.mjs"
   },
   "engines": {

@@ -2,6 +2,7 @@ import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from '../src/verify-login.mjs';
 import { randomUUID } from 'node:crypto';
 import { requireApprovedDevice } from '../src/device-access.mjs';
+import { requestAuthorization, cookieWriteAllowed } from '../src/session-auth.mjs';
 
 let verifyLogin;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -17,10 +18,11 @@ export default async function handler(request, response) {
     response.setHeader('Allow', methods.join(', '));
     return response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
-  const authorization = request.headers?.authorization;
+  const authorization = requestAuthorization(request);
   if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
     return response.status(401).json({ error: 'LOGIN_REQUIRED' });
   }
+  if (!cookieWriteAllowed(request)) return response.status(403).json({ error: 'ORIGIN_FORBIDDEN' });
   let identity;
   try {
     verifyLogin ??= createLoginVerifier({

@@ -5,13 +5,13 @@ export function createDeviceGate({ fetchImpl = fetch, open, close, show }) {
     session = next;
     const version = ++generation;
     close();
-    if (!session?.access_token) { show('signedout'); return false; }
+    if (session?.signedIn !== true) { show('signedout'); return false; }
     show('checking');
     const current = session;
     try {
       const response = await fetchImpl('/api/device', { method: requestApproval ? 'POST' : 'GET',
         cache: 'no-store', credentials: 'same-origin',
-        headers: { Authorization: `Bearer ${current.access_token}`, ...(requestApproval ? { 'Content-Type': 'application/json' } : {}) },
+        ...(requestApproval ? { headers: { 'Content-Type': 'application/json' } } : {}),
         ...(requestApproval ? { body: '{}' } : {}) });
       const data = await response.json();
       if (version !== generation) return false;

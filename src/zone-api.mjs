@@ -2,6 +2,7 @@ import config from '../aleph.config.json' with { type: 'json' };
 import { createLoginVerifier } from './verify-login.mjs';
 import { resourceAt } from './resource-zones.mjs';
 import { requireApprovedDevice } from './device-access.mjs';
+import { requestAuthorization, cookieWriteAllowed } from './session-auth.mjs';
 
 let verifyLogin;
 export function zoneHandler(service, { admin = false } = {}) {
@@ -15,10 +16,11 @@ export function zoneHandler(service, { admin = false } = {}) {
       response.setHeader('Allow', method);
       return fail(405, 'METHOD_NOT_ALLOWED');
     }
-    const authorization = request.headers?.authorization;
+    const authorization = requestAuthorization(request);
     if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
       return fail(401, 'LOGIN_REQUIRED');
     }
+    if (!cookieWriteAllowed(request)) return fail(403, 'ORIGIN_FORBIDDEN');
     let identity;
     try {
       verifyLogin ??= createLoginVerifier({ config,

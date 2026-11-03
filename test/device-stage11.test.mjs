@@ -13,7 +13,7 @@ mock.module('../aleph.config.json', { defaultExport: {
   publicAppUrl: 'https://vault-fixture.vercel.app/',
 } });
 mock.module('../src/verify-login.mjs', { namedExports: {
-  createLoginVerifier: () => async value => value === 'Bearer fixture-a'
+  createLoginVerifier: () => async value => ['Bearer fixture-a', 'Bearer fixture.header.signature'].includes(value)
     ? { kind: 'student', userId: ACCOUNT_A } : value === 'Bearer fixture-b'
       ? { kind: 'student', userId: ACCOUNT_B } : value === 'Bearer fixture-judge'
         ? { kind: 'judge', userId: ACCOUNT_A } : null,
@@ -100,6 +100,13 @@ test('인증·쿠키·등록부를 검증하고 요청 버튼은 대기만 기�
     // Signed judge identity keeps its existing ownership-scoped API contract.
     assert.equal((await call(notes, request('GET', { authorization: 'Bearer fixture-judge', cookie: undefined }))).statusCode, 200);
     assert.equal(noteReads, 2);
+    unavailable = false; rows.get(ACCOUNT_A).status = 'approved';
+    const combined = `__Host-vault-device=${cookie}; __Host-vault-session=fixture.header.signature`;
+    assert.equal((await call(notes, request('GET', { authorization: undefined, cookie: combined }))).statusCode, 200);
+    assert.equal(noteReads, 3);
+    assert.equal((await call(device, request('POST', { authorization: undefined, cookie: combined }))).statusCode, 403);
+    assert.equal((await call(device, request('POST', { authorization: undefined, cookie: combined,
+      origin: 'https://vault-fixture.vercel.app' }))).body.registered, true);
     assert.equal(deviceCookie({ headers: { cookie: `__Host-vault-device=${cookie}; __Host-vault-device=${cookie}` } }), null);
   } finally {
     globalThis.fetch = oldFetch;
@@ -133,7 +140,7 @@ test('UI는 승인·정상 응답만 열고 pending·실패·오래된 승인은
     if (payload === 'deferred') return new Promise(resolve => { resolveOld = resolve; });
     return new Response(JSON.stringify(payload), { status });
   }, open: async () => { opened++; visible = true; }, close: () => { visible = false; }, show: value => { state = value; } });
-  const session = { access_token: 'fixture' };
+  const session = { signedIn: true };
   await gate.setSession(session); assert.equal(visible, false); assert.equal(opened, 0);
   await gate.request(); assert.equal(visible, false);
   payload = { schema: 'vault.device.v1', state: 'approved', registered: true };
