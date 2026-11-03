@@ -1,4 +1,5 @@
 // Student self-checks only: never a judge verdict, and never include note bodies.
+import { URL } from 'node:url';
 export async function runAttackChecks(config) {
   if (![2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('현재 자기 점검은 2~12단계용입니다.');
   const base = new URL(config.publicAppUrl);
@@ -8,10 +9,16 @@ export async function runAttackChecks(config) {
   }
   const attempts = [];
   async function check(attackId, path, method, expected, summarize, headers = {}) {
+    // The submission runner permits only public HTTPS GET/HEAD. Do not attempt
+    // a write and convert its exception into a claimed rejection result.
+    if (method !== 'GET' && method !== 'HEAD') {
+      attempts.push({ attackId, expected, observed: 'not_run' });
+      return;
+    }
     let observed;
     try {
       const response = await fetch(new URL(path, base), {
-        method, redirect: 'error', signal: AbortSignal.timeout(10000),
+        method, redirect: 'error',
         headers: { 'Cache-Control': 'no-cache', ...headers },
       });
       observed = await summarize(response);
