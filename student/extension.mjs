@@ -70,6 +70,18 @@ function renderList(items, toText) {
   };
 }
 
+// 판정은 한국어 뜻과 원래 코드값을 함께 글자로 표시합니다.
+// 목록에 없는 값은 허용으로 읽히지 않도록 확인 불가(unknown)로 처리하고 받은 값을 함께 적습니다.
+function decisionText(decision) {
+  switch (decision) {
+    case 'allow': return '접근 허용(allow) — 정책상 허용이며 앱 접속 성공을 보장하지 않습니다.';
+    case 'deny': return '접근 거부(deny)';
+    case 'challenge': return '추가 확인 필요(challenge) — 이 화면은 추가 인증을 대신 수행하지 않습니다.';
+    case 'unknown': return '확인 불가(unknown) — 접근이 허용되지 않음';
+    default: return `확인 불가(unknown) — 접근이 허용되지 않음 (받은 값: ${String(decision)})`;
+  }
+}
+
 export function createStudentView() {
   return {
     renderIdentity({ me, devices, sessions } = {}) {
@@ -82,7 +94,41 @@ export function createStudentView() {
         `ID: ${s?.id ?? '확인 불가'}: ${statusText(SESSION_STATUS_TEXT, WARN_SESSION, s?.status)}`)(section)));
       return root;
     },
-    renderDecision() { return '학생 구현 대기: 서버의 판정과 이유를 연결하세요.'; },
+    renderDecision({ status, mode, data, error, appId } = {}) {
+      const root = el('div');
+      root.appendChild(el('h3', '업무 앱 접근 판정'));
+      const modeText = MODE_TEXT[mode];
+      if (modeText) root.appendChild(el('p', `자료 출처: ${modeText}`));
+
+      if (status === 'idle') {
+        root.appendChild(el('p', '앱을 골라 접속을 요청하세요.'));
+        return root;
+      }
+      if (status === 'loading') {
+        root.appendChild(el('p', `대상 앱: ${appId ?? '확인 불가'}`));
+        root.appendChild(el('p', '판정 확인 중'));
+        return root;
+      }
+      if (status === 'error') {
+        // 요청 실패는 서버 판정을 받지 못한 것으로, 접근 거부 판정과 다르게 표시합니다.
+        const message = error?.message;
+        root.appendChild(el('p', `대상 앱: ${appId ?? '확인 불가'}`));
+        root.appendChild(el('p', `요청 실패: ${message ? message : '서버 메시지 없음'}`));
+        root.appendChild(el('p', '판정을 받지 못했습니다. 접근 거부 판정이 아니며, 접근이 허용된 것도 아닙니다.'));
+        return root;
+      }
+      if (status !== 'ok' || data == null) {
+        root.appendChild(el('p', `대상 앱: ${appId ?? '확인 불가'}`));
+        root.appendChild(el('p', '판정: 확인 불가(unknown) — 접근이 허용되지 않음'));
+        return root;
+      }
+
+      root.appendChild(el('p', `대상 앱: ${data.appId ?? appId ?? '확인 불가'}`));
+      root.appendChild(el('p', `판정: ${decisionText(data.decision)}`));
+      root.appendChild(el('p', `판정 이유: ${data.reason ? data.reason : '제공되지 않음'}`));
+      root.appendChild(el('p', `판정 시각: ${data.checkedAt ? data.checkedAt : '제공되지 않음'}`));
+      return root;
+    },
     renderEvents() { return '학생 구현 대기: 본인 접속·XDR 기록을 연결하세요.'; },
     renderStatus() { return '학생 구현 대기: 기기·세션·알림과 연결 점검 상태를 구분하세요.'; },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
